@@ -94,18 +94,27 @@ line in `backup.sh` instead.
 
 ## Uploading a world to the server
 
-Also runs **locally**. Replaces the server's world with one from this machine —
-a singleplayer save, or a backup you're rolling back to.
+Replaces the server's world with another one — a singleplayer save, or a backup
+you're rolling back to. Two modes, depending on where the world already is.
+
+**World on your machine** — run this on your machine, it uploads over ssh:
 
 ```bash
-MC_SSH=you@vps.example.com ./scripts/push-world.sh ~/.minecraft/saves/MyWorld
+MC_SSH=you@vps.example.com ./scripts/push-world.sh "/media/you/DRIVE/My World"
 ```
 
-Quote the path if it has spaces:
+**World already on the VPS** — run it *there* with `--local`. No ssh, no
+transfer, so there's no reason to re-upload gigabytes you've already sent:
 
 ```bash
-MC_SSH=you@vps ./scripts/push-world.sh "/media/you/DRIVE/My World"
+./scripts/push-world.sh --local ~/uploads/MyWorld
 ```
+
+Use `--local` for anything that arrived on the server some other way: an
+earlier `scp`, a zip you unpacked there, a world pulled straight down on the
+VPS. It refuses if the source is the live world folder or sits inside it.
+
+Quote paths with spaces in either mode.
 
 **26.1 unified the save format**, which makes this much simpler than the advice
 you'll find in older guides. Singleplayer and Paper now use the same layout, so
@@ -143,6 +152,12 @@ from the old world can't linger, but `ops.json`, `whitelist-source.txt`, plugin
 configs and logs are left alone. `session.lock` is excluded, since the server
 writes its own and a stale one from an open client is the last thing you want
 to copy up.
+
+It compares by checksum rather than rsync's default size-and-timestamp check.
+Two different worlds can hold a same-size file with a matching timestamp —
+`level.dat` is a realistic candidate — and skipping it would leave a world
+that's part old and part new. That silent half-swap is worth more I/O to
+avoid on an operation you run this rarely.
 
 ## Security notes
 
