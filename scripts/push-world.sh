@@ -170,6 +170,14 @@ rsync -a --checksum --delete --partial --info=progress2 \
   --exclude='session.lock' \
   "$SRC/" "$RSYNC_DEST"
 
+# The container runs unprivileged as uid 1000 and cannot chown anything
+# itself, so a world that arrives owned by anyone else (rsync running as
+# root is the common case) would stop the server from starting at all.
+# Matches RUN_UID in bootstrap.sh and the compose default.
+echo "==> Setting ownership for the container (1000:1000)"
+run_on_server "chown -R 1000:1000 data/${MC_LEVEL_NAME} 2>/dev/null \
+  || echo '    could not chown — server.sh will report it if it matters'"
+
 echo "==> Starting the server"
 run_on_server "./scripts/server.sh start"
 

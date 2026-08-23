@@ -172,8 +172,23 @@ avoid on an operation you run this rarely.
   `docker-compose.yml` never publishes 25575 — not the firewall. To genuinely
   restrict a container port, bind it (`127.0.0.1:PORT:PORT`) or use the
   `DOCKER-USER` chain.
-- Container runs with `cap_drop: ALL` and `no-new-privileges`. Verify it isn't
-  running as root after first boot: `docker exec mc id`.
+- Container runs with `cap_drop: ALL`, `no-new-privileges`, and as `1000:1000`
+  rather than root. Check with `docker exec mc id`.
+- **Running as non-root is required here, not just preferred.** The image's
+  entrypoint chowns `/data` and drops privileges only when it starts as uid 0
+  — and with no capabilities it can do neither (`chown` needs `CAP_CHOWN`, the
+  user switch needs `CAP_SETUID`). Started as root it dies with `failed
+  switching to 'minecraft:minecraft'`, preceded by a long wall of `chown:
+  Operation not permitted`. Starting as 1000 skips that branch entirely.
+- The consequence: **`data/` on the host must be owned by uid 1000**, because
+  nothing inside the container can fix it. `bootstrap.sh` sets that, and
+  `push-world.sh` restores it after installing a world. `server.sh start`
+  checks before starting and tells you the `chown` to run rather than letting
+  the container fail. If you ever hit it by hand:
+
+  ```bash
+  chown -R 1000:1000 data/
+  ```
 - Own bridge network (`mc-net`) so it can't reach other containers on the host.
 - `mem_limit` / `cpus` cap it so it can't starve co-located services.
 - Minecraft servers have a real RCE history (Log4Shell was exploited via chat).
