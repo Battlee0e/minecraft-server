@@ -56,6 +56,46 @@ docker exec mc rcon-cli whitelist list
 `ENFORCE_WHITELIST=TRUE` kicks non-whitelisted players immediately rather than
 only blocking new joins.
 
+**"That player does not exist"** means Mojang's profile API couldn't resolve
+the name — the server has to turn it into a UUID, because `ONLINE_MODE=TRUE`.
+Almost always one of:
+
+- It's an **Xbox gamertag, not a Java profile name.** They differ even on the
+  same Microsoft account, and only the Java name resolves.
+- It's a **Bedrock** account (phone, console, Windows 10 edition). Those can't
+  join a Java server at all without Geyser.
+- A typo, or the player renamed recently.
+
+Check a name before blaming the server — this returns the UUID if it's a real
+Java account and 404 if it isn't:
+
+```bash
+curl -s https://api.mojang.com/users/profiles/minecraft/PlayerName
+```
+
+## Ops and gamerules
+
+```bash
+docker exec mc rcon-cli op PlayerName          # admin, persists in ops.json
+docker exec mc rcon-cli deop PlayerName
+```
+
+Ops resolve names through the same Mojang lookup, so the notes above apply.
+There's also an `OPS` environment variable, but the image skips it once
+`data/ops.json` exists — so on a server that has already run, `rcon-cli op` is
+the way.
+
+Gamerules are stored in the world and survive restarts:
+
+```bash
+# how many players must sleep to skip the night, as a percentage.
+# 0 = any single player; 100 = everyone (the default)
+docker exec mc rcon-cli gamerule playersSleepingPercentage 0
+
+# stop phantoms spawning when people go without sleep
+docker exec mc rcon-cli gamerule doInsomnia false
+```
+
 ## Backups
 
 ```bash
