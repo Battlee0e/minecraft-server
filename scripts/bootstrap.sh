@@ -15,8 +15,13 @@ else
   else
     sed -i '' "s|^MC_RCON_PASSWORD=.*|MC_RCON_PASSWORD=${RCON_PW}|" .env
   fi
+  # The container runs as this uid:gid and can't chown /data itself, so
+  # record whoever is setting the server up rather than assuming 1000.
+  sed -i.bak "s|^MC_UID=.*|MC_UID=$(id -u)|; s|^MC_GID=.*|MC_GID=$(id -g)|" .env
+  rm -f .env.bak
   chmod 600 .env
   echo "    Created .env (chmod 600) with a generated RCON password."
+  echo "    Container will run as $(id -u):$(id -g) — matching you."
 fi
 
 if [ -f data/whitelist-source.txt ]; then

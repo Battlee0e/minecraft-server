@@ -39,6 +39,19 @@ services:
       - mc-net
 
     # --- hardening ---
+    # Run as an unprivileged user from the start, never as root.
+    #
+    # This is required, not just preferred, alongside cap_drop: ALL. The
+    # image's entrypoint only chowns /data and drops privileges when it
+    # starts as uid 0 — and with no capabilities, root can do neither
+    # (chown needs CAP_CHOWN, the user switch needs CAP_SETUID/SETGID), so
+    # it dies with "failed switching to 'minecraft:minecraft'". Starting as
+    # non-root skips that branch entirely.
+    #
+    # The flip side: nothing inside can fix ownership any more, so ./data on
+    # the host must already belong to this uid. bootstrap.sh sets MC_UID and
+    # MC_GID to whoever runs it, and server.sh checks before starting.
+    user: "${MC_UID}:${MC_GID}"
     security_opt:
       - no-new-privileges:true
     cap_drop:

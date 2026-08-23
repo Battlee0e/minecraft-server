@@ -75,8 +75,42 @@ address() {
   echo "  Only whitelisted names can join — see data/whitelist-source.txt"
 }
 
+# The container runs as MC_UID:MC_GID with no capabilities, so it cannot
+# chown anything itself. If data/ belongs to someone else the server dies
+# in a wall of "chown: Operation not permitted" — catch it here instead.
+preflight() {
+  local uid gid offender
+  [ -f .env ] || return 0
+  uid="$(grep -E '^MC_UID=' .env | cut -d= -f2)"
+  gid="$(grep -E '^MC_GID=' .env | cut -d= -f2)"
+  [ -n "$uid" ] || return 0
+  [ -d data ] || return 0
+
+  # -quit stops at the first mismatch rather than walking the whole world.
+  offender="$(find data ! -uid "$uid" -print -quit 2>/dev/null)"
+  [ -n "$offender" ] || return 0
+
+  cat >&2 <<EOF
+Error: data/ is not owned by ${uid}:${gid}, and the container cannot fix
+that itself (it runs unprivileged with cap_drop: ALL).
+
+  first mismatch: ${offender}
+  owned by uid:   $(stat -c %u "$offender")
+  expected uid:   ${uid}
+
+Fix it, then start again:
+
+  sudo chown -R ${uid}:${gid} data/
+
+This usually means files arrived as another user — an rsync or scp under a
+different account, or a directory Docker created as root.
+EOF
+  exit 1
+}
+
 case "${1:-}" in
   start)
+    preflight
     docker compose up -d
     echo
     address
