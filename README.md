@@ -17,9 +17,14 @@ docker compose logs -f mc
 Firewall, once, as root:
 
 ```bash
-ufw allow 25565/tcp
-ufw status numbered           # confirm 25575 (RCON) is NOT listed
+ufw allow 25565/tcp           # game port — must stay open for players
+ufw allow 80,443/tcp          # only if a website shares this VPS
+ufw status numbered
 ```
+
+Rules are per-port and independent: adding the web ports does not affect 25565,
+and 25565 stays open for as long as you want people to connect. Note that UFW
+does not actually gate the container's port — see Security notes.
 
 ## Layout
 
@@ -30,8 +35,10 @@ ufw status numbered           # confirm 25575 (RCON) is NOT listed
 | `.env` | Real config incl. RCON password — **gitignored** |
 | `data/whitelist-source.txt` | Plain usernames, one per line — **gitignored** |
 | `data/` | World saves, `ops.json`, logs, plugin configs — **gitignored** |
-| `scripts/bootstrap.sh` | First-run setup |
-| `scripts/backup.sh` | Snapshot `data/` with saving paused |
+| `scripts/bootstrap.sh` | First-run setup — **on the VPS** |
+| `scripts/backup.sh` | Snapshot `data/` with saving paused — **on the VPS** |
+| `scripts/pull-backups.sh` | Fetch archives down — **on your local machine** |
+| `backups/` | Retained archives — **gitignored** |
 
 ## Whitelist
 
@@ -55,18 +62,48 @@ only blocking new joins.
 ```
 
 Pauses saving while the tar runs, so no region file gets copied half-written,
-and turns saving back on afterwards even if the tar fails. Uncomment the
-`aws s3 cp` line to upload to R2. Run it daily from cron:
+and turns saving back on afterwards even if the tar fails. Archives land in
+`backups/` on the VPS; the newest 7 are kept and older ones pruned. Tune with
+`MC_BACKUP_KEEP` / `MC_BACKUP_DIR`.
+
+Each archive is a full copy of `data/`, so keep an eye on disk: `du -sh backups/`.
+
+Run it daily from cron:
 
 ```
 0 4 * * * /path/to/mc-server/scripts/backup.sh >> /var/log/mc-backup.log 2>&1
 ```
+
+### Copying backups to your machine
+
+A backup that only exists on the VPS doesn't survive the VPS. `pull-backups.sh`
+runs **locally** (the only script here that does) and rsyncs the archives down:
+
+```bash
+MC_SSH=you@vps.example.com ./scripts/pull-backups.sh
+```
+
+rsync only transfers archives you don't already have, and `--partial` resumes an
+interrupted pull rather than restarting it — world tarballs get large. Override
+`MC_REMOTE_DIR` if the repo isn't at `~/minecraft-server` on the server, and
+`LOCAL_DIR` to put them somewhere other than `./backups`.
+
+For a true offsite copy without a machine in the loop, uncomment the `aws s3 cp`
+line in `backup.sh` instead.
 
 ## Security notes
 
 - RCON is enabled but its port is **never published** — `backup.sh` reaches it
   through `docker exec`. An exposed RCON port with a weak password is a real RCE
   path; keep it off the host network.
+- **UFW does not filter Docker-published ports.** Docker writes DNAT rules into
+  iptables' `nat`/`PREROUTING`, which runs *before* the `filter`/`INPUT` chain
+  where UFW rules live. So `25565` is reachable from the internet whether or not
+  UFW allows it, and a `ufw deny 25565` would not close it. The `ufw allow` below
+  is documentation, not enforcement. What actually keeps RCON safe is that
+  `docker-compose.yml` never publishes 25575 — not the firewall. To genuinely
+  restrict a container port, bind it (`127.0.0.1:PORT:PORT`) or use the
+  `DOCKER-USER` chain.
 - Container runs with `cap_drop: ALL` and `no-new-privileges`. Verify it isn't
   running as root after first boot: `docker exec mc id`.
 - Own bridge network (`mc-net`) so it can't reach other containers on the host.
