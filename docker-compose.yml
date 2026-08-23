@@ -60,6 +60,11 @@ services:
     tty: true
     restart: unless-stopped
 
+    # Docker's default is 10s, then SIGKILL. A large world can still be
+    # flushing to disk at that point, and a killed save writes torn chunks.
+    # Give the JVM room to shut down cleanly.
+    stop_grace_period: 60s
+
 networks:
   mc-net:
     driver: bridge

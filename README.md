@@ -9,9 +9,8 @@ shared VPS. Config is env-driven.
 git clone https://github.com/Battlee0e/minecraft-server.git minecraft-server 
 cd minecraft-server 
 ./scripts/bootstrap.sh # creates .env + whitelist from the templates
-$EDITOR data/whitelist-source.txt
-docker compose up -d
-docker compose logs -f mc
+nano data/whitelist-source.txt
+./scripts/server.sh start
 ```
 
 Firewall, once, as root:
@@ -35,6 +34,7 @@ does not actually gate the container's port — see Security notes.
 | `.env` | Real config incl. RCON password — **gitignored** |
 | `data/whitelist-source.txt` | Plain usernames, one per line — **gitignored** |
 | `data/` | World saves, `ops.json`, logs, plugin configs — **gitignored** |
+| `scripts/server.sh` | start/stop/status + connect address — **on the VPS** |
 | `scripts/bootstrap.sh` | First-run setup — **on the VPS** |
 | `scripts/backup.sh` | Snapshot `data/` with saving paused — **on the VPS** |
 | `scripts/pull-backups.sh` | Fetch archives down — **on your local machine** |
@@ -199,10 +199,42 @@ first boot), note that the usual suggestions there are farm-hostile:
 
 Only the last one is worth touching on a farm server.
 
+## Running it
+
+```bash
+./scripts/server.sh start     # up + prints the connect address
+./scripts/server.sh status    # state, health, connect address
+./scripts/server.sh address   # just the address, for pasting to players
+./scripts/server.sh stop      # graceful — waits for the world to save
+./scripts/server.sh logs      # follow; Ctrl-C detaches, server keeps running
+```
+
+`start`/`stop`/`logs` are thin wrappers over `docker compose` — use either. The
+one that earns its keep is `address`, which reads the *actually published* port
+out of Docker rather than assuming 25565, looks up the public IP, and prints
+what players should type:
+
+```
+Port: 25565
+
+  Players connect to:   203.0.113.42
+  (no port needed — 25565 is Minecraft's default)
+
+  On the same network:  192.168.0.73
+```
+
+The port is only shown in the address when it isn't 25565 — the client assumes
+that one, so appending it is noise, and getting this backwards is a common
+source of "it won't connect".
+
+`stop` is worth preferring over `docker compose down`: it leans on
+`stop_grace_period: 60s`, since Docker's 10s default can SIGKILL the JVM
+mid-save and write torn chunks.
+
 ## Health
 
 ```bash
-docker compose ps             # should read "healthy"
+./scripts/server.sh status    # should read "healthy"
 docker exec mc rcon-cli tps
 ```
 
