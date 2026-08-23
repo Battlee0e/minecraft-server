@@ -101,40 +101,48 @@ a singleplayer save, or a backup you're rolling back to.
 MC_SSH=you@vps.example.com ./scripts/push-world.sh ~/.minecraft/saves/MyWorld
 ```
 
-**Singleplayer and Paper store dimensions differently**, and this is the thing
-that catches people out. A singleplayer save nests the other dimensions inside
-the world folder; Paper wants them as siblings:
-
-| Singleplayer | Paper server |
-|---|---|
-| `MyWorld/` (overworld) | `world/` |
-| `MyWorld/DIM-1/` (nether) | `world_nether/DIM-1/` |
-| `MyWorld/DIM1/` (end) | `world_the_end/DIM1/` |
-
-Copy the folder across untouched and you get your overworld with a **newly
-generated nether and end** — which looks like it worked right up until someone
-walks through a portal. The script does the split for you and gives each world
-folder the `level.dat` it needs.
-
-Preview the conversion without uploading anything:
+Quote the path if it has spaces:
 
 ```bash
-./scripts/push-world.sh --stage-only ~/.minecraft/saves/MyWorld   # convert, no network
-./scripts/push-world.sh --dry-run    ~/.minecraft/saves/MyWorld   # show the transfer
+MC_SSH=you@vps ./scripts/push-world.sh "/media/you/DRIVE/My World"
 ```
 
-The upload itself stops the server first (the JVM holds region files open and
-would overwrite whatever you copy in), takes a backup of the world being
-replaced, transfers, and starts it again. It asks you to type the world name
-before doing any of that; `--yes` skips the prompt.
+**26.1 unified the save format**, which makes this much simpler than the advice
+you'll find in older guides. Singleplayer and Paper now use the same layout, so
+a modern world uploads verbatim — no conversion, no separate `world_nether`:
 
-`--delete` is scoped to the individual world folders, never to `data/` — so
-stale region files from the old world can't linger, but `ops.json`,
-`whitelist-source.txt`, plugin configs and logs are left alone.
+| | pre-26.1 | 26.1+ |
+|---|---|---|
+| Overworld | `world/region/` | `dimensions/minecraft/overworld/` |
+| Nether | `DIM-1/` (or server `world_nether/`) | `dimensions/minecraft/the_nether/` |
+| End | `DIM1/` (or server `world_the_end/`) | `dimensions/minecraft/the_end/` |
+| Player data | `playerdata/`, `stats/`, `advancements/` | `players/` |
 
-If the world was made in an older version it gets upgraded on load, and per
-Updates above, that is not reversible — which is what the automatic backup is
-for.
+The script detects which format it's looking at and prints the dimensions it
+found with their sizes, so you can confirm the nether and end are actually
+there before uploading. **Older guides tell you to split `DIM-1` into a
+separate `world_nether/` folder — don't; that's pre-26.1 advice** and it will
+produce a layout the current server doesn't expect.
+
+A pre-26.1 world is migrated by the server on first load. That conversion is
+one-way (see Updates), which the script warns about before it starts.
+
+Preview without uploading:
+
+```bash
+./scripts/push-world.sh --dry-run "/media/you/DRIVE/My World"
+```
+
+The upload stops the server first (the JVM holds region files open and would
+overwrite whatever you copy in), takes a backup of the world being replaced,
+transfers, and starts it again. It asks you to type the world name first;
+`--yes` skips that.
+
+`--delete` is scoped to the world folder, never to `data/` — stale region files
+from the old world can't linger, but `ops.json`, `whitelist-source.txt`, plugin
+configs and logs are left alone. `session.lock` is excluded, since the server
+writes its own and a stale one from an open client is the last thing you want
+to copy up.
 
 ## Security notes
 
