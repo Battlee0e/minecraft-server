@@ -38,6 +38,7 @@ does not actually gate the container's port — see Security notes.
 | `scripts/bootstrap.sh` | First-run setup — **on the VPS** |
 | `scripts/backup.sh` | Snapshot `data/` with saving paused — **on the VPS** |
 | `scripts/pull-backups.sh` | Fetch archives down — **on your local machine** |
+| `scripts/push-world.sh` | Upload a world to the VPS — **on your local machine** |
 | `backups/` | Retained archives — **gitignored** |
 
 ## Whitelist
@@ -90,6 +91,50 @@ interrupted pull rather than restarting it — world tarballs get large. Overrid
 
 For a true offsite copy without a machine in the loop, uncomment the `aws s3 cp`
 line in `backup.sh` instead.
+
+## Uploading a world to the server
+
+Also runs **locally**. Replaces the server's world with one from this machine —
+a singleplayer save, or a backup you're rolling back to.
+
+```bash
+MC_SSH=you@vps.example.com ./scripts/push-world.sh ~/.minecraft/saves/MyWorld
+```
+
+**Singleplayer and Paper store dimensions differently**, and this is the thing
+that catches people out. A singleplayer save nests the other dimensions inside
+the world folder; Paper wants them as siblings:
+
+| Singleplayer | Paper server |
+|---|---|
+| `MyWorld/` (overworld) | `world/` |
+| `MyWorld/DIM-1/` (nether) | `world_nether/DIM-1/` |
+| `MyWorld/DIM1/` (end) | `world_the_end/DIM1/` |
+
+Copy the folder across untouched and you get your overworld with a **newly
+generated nether and end** — which looks like it worked right up until someone
+walks through a portal. The script does the split for you and gives each world
+folder the `level.dat` it needs.
+
+Preview the conversion without uploading anything:
+
+```bash
+./scripts/push-world.sh --stage-only ~/.minecraft/saves/MyWorld   # convert, no network
+./scripts/push-world.sh --dry-run    ~/.minecraft/saves/MyWorld   # show the transfer
+```
+
+The upload itself stops the server first (the JVM holds region files open and
+would overwrite whatever you copy in), takes a backup of the world being
+replaced, transfers, and starts it again. It asks you to type the world name
+before doing any of that; `--yes` skips the prompt.
+
+`--delete` is scoped to the individual world folders, never to `data/` — so
+stale region files from the old world can't linger, but `ops.json`,
+`whitelist-source.txt`, plugin configs and logs are left alone.
+
+If the world was made in an older version it gets upgraded on load, and per
+Updates above, that is not reversible — which is what the automatic backup is
+for.
 
 ## Security notes
 
