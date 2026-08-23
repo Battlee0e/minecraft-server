@@ -78,12 +78,37 @@ address() {
 # The container runs as MC_UID:MC_GID with no capabilities, so it cannot
 # chown anything itself. If data/ belongs to someone else the server dies
 # in a wall of "chown: Operation not permitted" — catch it here instead.
+# Reads one key from .env. Must not fail when the key is absent: under
+# `set -e` with pipefail, a bare `grep | cut` that matches nothing kills the
+# whole script silently. sed -n exits 0 either way.
+env_get() {
+  [ -f .env ] || return 0
+  sed -n "s/^$1=//p" .env | head -1
+}
+
 preflight() {
   local uid gid offender
-  [ -f .env ] || return 0
-  uid="$(grep -E '^MC_UID=' .env | cut -d= -f2)"
-  gid="$(grep -E '^MC_GID=' .env | cut -d= -f2)"
-  [ -n "$uid" ] || return 0
+  uid="$(env_get MC_UID)"
+  gid="$(env_get MC_GID)"
+  # Matches the compose default, so a pre-existing .env behaves the same.
+  uid="${uid:-1000}"
+  gid="${gid:-1000}"
+
+  if [ "$uid" = "0" ]; then
+    cat >&2 <<'EOF'
+Error: MC_UID is 0. The container cannot run as root — with cap_drop: ALL
+it has no CAP_SETUID, so the image's privilege drop fails and it exits with
+"failed switching to 'minecraft:minecraft'".
+
+Set MC_UID/MC_GID in .env to a non-root user (1000 is the usual choice) and
+chown data/ to match:
+
+  sed -i 's/^MC_UID=.*/MC_UID=1000/; s/^MC_GID=.*/MC_GID=1000/' .env
+  chown -R 1000:1000 data/
+EOF
+    exit 1
+  fi
+
   [ -d data ] || return 0
 
   # -quit stops at the first mismatch rather than walking the whole world.

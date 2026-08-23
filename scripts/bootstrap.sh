@@ -4,6 +4,12 @@ cd "$(dirname "$0")/.."
 
 echo "==> Bootstrapping Minecraft server config"
 
+# The container runs as this uid, matching docker-compose.yml. Never root:
+# with cap_drop: ALL the image can't drop privileges, so it must start
+# unprivileged. 1000 is the image's own default user.
+RUN_UID=1000
+RUN_GID=1000
+
 if [ -f .env ]; then
   echo "    .env already exists — leaving it alone."
 else
@@ -15,13 +21,8 @@ else
   else
     sed -i '' "s|^MC_RCON_PASSWORD=.*|MC_RCON_PASSWORD=${RCON_PW}|" .env
   fi
-  # The container runs as this uid:gid and can't chown /data itself, so
-  # record whoever is setting the server up rather than assuming 1000.
-  sed -i.bak "s|^MC_UID=.*|MC_UID=$(id -u)|; s|^MC_GID=.*|MC_GID=$(id -g)|" .env
-  rm -f .env.bak
   chmod 600 .env
   echo "    Created .env (chmod 600) with a generated RCON password."
-  echo "    Container will run as $(id -u):$(id -g) — matching you."
 fi
 
 if [ -f data/whitelist-source.txt ]; then
@@ -29,6 +30,18 @@ if [ -f data/whitelist-source.txt ]; then
 else
   cp data/whitelist-source.txt.example data/whitelist-source.txt
   echo "    Created data/whitelist-source.txt — edit it with real usernames."
+fi
+
+# The container can't chown data/ itself (cap_drop: ALL), so do it here
+# while we still might have the privileges for it.
+if [ -n "$(find data ! -uid "$RUN_UID" -print -quit 2>/dev/null)" ]; then
+  if chown -R "${RUN_UID}:${RUN_GID}" data/ 2>/dev/null; then
+    echo "    Set ownership of data/ to ${RUN_UID}:${RUN_GID}."
+  else
+    echo "    WARNING: data/ is not owned by ${RUN_UID}:${RUN_GID} and this"
+    echo "             user can't change it. The server will not start until:"
+    echo "               sudo chown -R ${RUN_UID}:${RUN_GID} data/"
+  fi
 fi
 
 cat <<'EOF'

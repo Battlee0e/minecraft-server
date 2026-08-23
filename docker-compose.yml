@@ -39,7 +39,8 @@ services:
       - mc-net
 
     # --- hardening ---
-    # Run as an unprivileged user from the start, never as root.
+    # Run as an unprivileged user from the start, never as root. 1000 is the
+    # image's own default user, so this needs no configuring.
     #
     # This is required, not just preferred, alongside cap_drop: ALL. The
     # image's entrypoint only chowns /data and drops privileges when it
@@ -49,9 +50,10 @@ services:
     # non-root skips that branch entirely.
     #
     # The flip side: nothing inside can fix ownership any more, so ./data on
-    # the host must already belong to this uid. bootstrap.sh sets MC_UID and
-    # MC_GID to whoever runs it, and server.sh checks before starting.
-    user: "${MC_UID}:${MC_GID}"
+    # the host must belong to uid 1000. bootstrap.sh does that; server.sh
+    # checks it before starting. MC_UID/MC_GID override it if you ever need
+    # to, but they aren't in .env by default — 1000 just works.
+    user: "${MC_UID:-1000}:${MC_GID:-1000}"
     security_opt:
       - no-new-privileges:true
     cap_drop:
