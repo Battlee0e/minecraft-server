@@ -1,0 +1,11 @@
+# Secrets
+.env
+
+# Server runtime data: world saves, ops.json, whitelist.json (real UUIDs),
+# banned-players.json, logs, plugin configs. None of this belongs in git.
+data/*
+!data/whitelist-source.txt.example
+
+# Backups
+*.tar.gz
+*.tgz

@@ -1,0 +1,65 @@
+services:
+  mc:
+    image: ${MC_IMAGE}
+    container_name: mc
+    ports:
+      # Game port only. RCON (25575) is deliberately NOT published —
+      # backup.sh reaches it via `docker exec`, not over the network.
+      - "25565:25565"
+
+    environment:
+      EULA: "TRUE"
+      TYPE: "PAPER"
+      VERSION: "${MC_VERSION}"
+      MEMORY: "${MC_MEMORY}"
+      DIFFICULTY: "${MC_DIFFICULTY}"
+      MAX_PLAYERS: "${MC_MAX_PLAYERS}"
+      MOTD: "${MC_MOTD}"
+
+      # --- access control ---
+      WHITELIST_FILE: "/data/whitelist-source.txt"
+      ENFORCE_WHITELIST: "TRUE"
+      ONLINE_MODE: "TRUE"
+
+      # --- performance ---
+      # Aikar's G1GC flags: the single biggest win, reduces GC pause spikes.
+      USE_AIKAR_FLAGS: "TRUE"
+      # Tick cost scales roughly with the square of view distance.
+      VIEW_DISTANCE: "${MC_VIEW_DISTANCE}"
+      SIMULATION_DISTANCE: "${MC_SIMULATION_DISTANCE}"
+
+      # --- rcon: internal use only ---
+      ENABLE_RCON: "TRUE"
+      RCON_PASSWORD: "${MC_RCON_PASSWORD}"
+
+    volumes:
+      - ./data:/data
+
+    networks:
+      - mc-net
+
+    # --- hardening ---
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+    # --- resource ceiling ---
+    # MC_MEMORY (JVM heap) must stay well below MC_MEM_LIMIT, or the
+    # container gets OOM-killed when the JVM's off-heap usage is counted.
+    mem_limit: ${MC_MEM_LIMIT}
+    cpus: ${MC_CPUS}
+
+    healthcheck:
+      test: ["CMD", "mc-health"]
+      start_period: 2m
+      interval: 30s
+      retries: 5
+
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+
+networks:
+  mc-net:
+    driver: bridge

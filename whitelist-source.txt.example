@@ -1,0 +1,6 @@
+# One Minecraft username per line. Lines starting with # are ignored.
+# The image resolves usernames to UUIDs on each start.
+#
+# Copy to whitelist-source.txt (gitignored) and put real names there.
+Steve
+Alex
