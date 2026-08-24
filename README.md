@@ -43,18 +43,45 @@ does not actually gate the container's port — see Security notes.
 
 ## Whitelist
 
-Edit `data/whitelist-source.txt` (one username per line) and restart. The image
-resolves usernames to UUIDs on each start, so no manual UUID lookup.
+Edit `data/whitelist-source.txt` (one username per line, `#` comments allowed)
+and restart with `./scripts/server.sh restart`. `server.sh` turns that file into
+the `WHITELIST` variable the image expects, and the image resolves each username
+to a UUID, so no manual UUID lookup.
 
-To change it live instead:
+Start it any other way — a bare `docker compose up -d` — and the whitelist file
+is not read at all. `data/whitelist.json` simply stays as it is.
+
+To add someone live instead:
 
 ```bash
 docker exec mc rcon-cli whitelist add PlayerName
 docker exec mc rcon-cli whitelist list
 ```
 
+Live additions survive restarts: the names from the file are *merged* into
+`whitelist.json`, never swapped in over it. Add the name to
+`whitelist-source.txt` too, so the file stays a full record of who has access.
+
+**Removing someone takes the RCON command** — deleting the line from
+`whitelist-source.txt` is not enough, because merging can only add:
+
+```bash
+docker exec mc rcon-cli whitelist remove PlayerName
+```
+
+To flip that around and make the file the single source of truth, set
+`EXISTING_WHITELIST_FILE=SYNCHRONIZE` in `docker-compose.yml`. Then a deleted
+line does remove access — but every live `whitelist add` is silently discarded
+on the next restart.
+
 `ENFORCE_WHITELIST=TRUE` kicks non-whitelisted players immediately rather than
 only blocking new joins.
+
+**Do not switch this to the image's `WHITELIST_FILE` option.** It looks like the
+natural fit for a file of names and is not: it copies its input verbatim over
+`whitelist.json` instead of parsing it. Paper then rejects the file, moves it to
+`whitelist.json.backup`, and starts with an empty whitelist — so nobody can join
+at all. `docker-compose.yml` carries the same warning.
 
 **"That player does not exist"** means Mojang's profile API couldn't resolve
 the name — the server has to turn it into a UUID, because `ONLINE_MODE=TRUE`.

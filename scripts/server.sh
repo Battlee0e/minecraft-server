@@ -86,6 +86,20 @@ env_get() {
   sed -n "s/^$1=//p" .env | head -1
 }
 
+# docker-compose.yml passes the whitelist as MC_WHITELIST, a comma-separated
+# name list, because the image's file-based option copies rather than parses
+# (see the comment there). Compose has no way to read a file itself, so turn
+# the one-name-per-line source into that list here. An exported variable wins
+# over .env, so nothing needs to be stored there.
+#
+# Strips comments and whitespace. No source file, or one with nothing but
+# comments, yields an empty string — harmless, the image just skips the step.
+whitelist_csv() {
+  [ -f data/whitelist-source.txt ] || return 0
+  sed -e 's/#.*//' -e 's/[[:space:]]//g' -e '/^$/d' data/whitelist-source.txt |
+    paste -sd, -
+}
+
 preflight() {
   local uid gid offender
   uid="$(env_get MC_UID)"
@@ -136,6 +150,14 @@ EOF
 case "${1:-}" in
   start)
     preflight
+    MC_WHITELIST="$(whitelist_csv)"
+    export MC_WHITELIST
+    if [ -z "$MC_WHITELIST" ]; then
+      echo "Warning: data/whitelist-source.txt lists no names. With" >&2
+      echo "ENFORCE_WHITELIST=TRUE, only players already in" >&2
+      echo "data/whitelist.json will be able to join." >&2
+      echo >&2
+    fi
     docker compose up -d
     echo
     address

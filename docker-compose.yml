@@ -17,7 +17,24 @@ services:
       MOTD: "${MC_MOTD}"
 
       # --- access control ---
-      WHITELIST_FILE: "/data/whitelist-source.txt"
+      # WHITELIST takes a name list and resolves each one to a UUID before
+      # writing a real whitelist.json. server.sh fills it from
+      # data/whitelist-source.txt, because compose can't read a file into a
+      # variable.
+      #
+      # Do NOT go back to WHITELIST_FILE. That option is a file-to-file sync,
+      # not a parser: it copies whatever you point it at straight over
+      # whitelist.json, bare usernames and comment lines included. Paper then
+      # rejects the result ("Expected a JsonArray but was JsonPrimitive"),
+      # renames it to whitelist.json.backup and starts with an EMPTY
+      # whitelist — which, with ENFORCE_WHITELIST, locks everyone out.
+      #
+      # Names here are merged into the existing whitelist, so players added
+      # live with `rcon-cli whitelist add` survive a restart. The flip side is
+      # that deleting a name from the file does not remove them — see the
+      # README. Set EXISTING_WHITELIST_FILE=SYNCHRONIZE to invert that
+      # trade-off and make the file authoritative.
+      WHITELIST: "${MC_WHITELIST:-}"
       ENFORCE_WHITELIST: "TRUE"
       ONLINE_MODE: "TRUE"
 
