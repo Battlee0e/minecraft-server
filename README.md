@@ -289,7 +289,24 @@ own will not work, because the world has already been converted.
 
 ## Performance
 
-Already applied: Aikar's G1GC flags, and view/simulation distance at 8/8.
+Already applied: Aikar's G1GC flags, view distance 16, simulation distance 8,
+and heap/limit sized for a 4 GB VPS.
+
+### Memory and CPU
+
+`MC_MEMORY=2200M` / `MC_MEM_LIMIT=3g` follows two rules: the heap stays at
+~70–75% of the container limit, because the JVM's off-heap usage (metaspace,
+thread stacks, direct buffers, GC structures) counts toward that limit and
+setting them close gets the container OOM-killed while the heap still looks
+healthy; and the limit leaves ~1 GB for the host. On a different box, scale
+both — 8 GB → `6g` / `4500M`, 2 GB → `1500m` / `1024M` (and drop view
+distance back to 10). Bigger is not automatically better: an oversized heap
+makes G1 pauses longer, not shorter.
+
+`MC_CPUS=2` should stay. The tick loop is single-threaded, so a third core
+cannot make ticks faster — the second exists so chunk gen/IO and GC threads
+aren't fighting the tick thread. Raise it only if players stutter *while
+exploring new terrain*, and only on a box with 4+ cores.
 
 The two distances do different jobs — they were one setting before 1.18, and
 most tuning advice online still conflates them:
@@ -298,6 +315,15 @@ most tuning advice online still conflates them:
   tick time. Raise or lower it freely; farms are unaffected.
 - **Simulation distance** is how far the world *ticks*, and it's the real tick
   cost — ticking chunks scale as `(2n+1)²`, so 8 is ~3.5× the work of 4.
+
+**View distance is a ceiling, not a fixed value.** The client's own slider
+picks anything up to it; there is no "unlimited" — the server maximum is 32.
+Cost is `(2n+1)²` chunks *per player*, so 8 → 289, 12 → 625, 16 → 1089,
+32 → 4225. Chunks are loaded once and shared, though, so what actually
+drives memory is how far apart players roam — two standing together cost
+about what one does. 16 suits a small group; if everyone splits up to
+explore and the heap gets tight, raise `MC_MEMORY`. 32 will OOM-kill the
+container.
 
 **Simulation distance 8 is a floor here, not a preference.** Mob spawning uses
 a 128-block sphere around each player, which is exactly 8 chunks; below that
