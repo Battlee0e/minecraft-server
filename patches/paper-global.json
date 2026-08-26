@@ -1,16 +1,12 @@
 {
-  "patches": [
+  "file": "/data/config/paper-global.yml",
+  "ops": [
     {
-      "file": "/data/config/paper-global.yml",
-      "ops": [
-        {
-          "$set": {
-            "path": "$['unsupported-settings']['allow-piston-duplication']",
-            "value": "${CFG_ALLOW_PISTON_DUPLICATION}",
-            "value-type": "bool"
-          }
-        }
-      ]
+      "$set": {
+        "path": "$['unsupported-settings']['allow-piston-duplication']",
+        "value": "${CFG_ALLOW_PISTON_DUPLICATION}",
+        "value-type": "bool"
+      }
     }
   ]
 }

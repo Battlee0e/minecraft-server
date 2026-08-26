@@ -154,7 +154,20 @@ contain hyphens, which break the dotted form. `$set` requires the key to
 already exist and fails loudly if it doesn't; that's deliberate, so a key
 Paper has renamed shows up as an error rather than a silent no-op.
 
-**Verify it took**, since a failed patch does not stop the server:
+**A malformed patch definition is fatal.** `mc-image-helper` exits 2 before
+the JVM starts, and `restart: unless-stopped` turns that into a crash loop
+until Docker gives up — the server does not come up at all. The definition
+files are read as *bare* `PatchDefinition` objects (`file` + `ops` at the top
+level) because `PATCH_DEFINITIONS` points at a directory; the `{"patches":
+[...]}` wrapper shown in some examples is the patch-*set* format, and only
+applies when the variable points at a single file. Getting that wrong is what
+the crash loop looks like:
+
+```
+ERROR : Failed to load patch definitions from /patches: Unrecognized field "patches"
+```
+
+**Verify a change took** — a patch that loads but matches nothing is quieter:
 
 ```bash
 docker compose logs mc | grep -i patch
@@ -169,8 +182,10 @@ Two caveats:
   image pre-downloads Paper's default configs before the server starts, and
   that download 404s for 26.x versions ([itzg#4025]), so the file doesn't
   exist yet to patch — you get `Unable to patch ... it is not an existing
-  file`. Paper writes the real file during that first boot, and the patch
-  applies from the second start onward. Restart once after a fresh install.
+  file`. That one is *not* fatal — unlike a malformed definition, a patch
+  whose target is missing logs and moves on. Paper writes the real file during
+  that first boot and the patch applies from the second start onward, so
+  restart once after a fresh install.
 
 [itzg#4025]: https://github.com/itzg/docker-minecraft-server/issues/4025
 
