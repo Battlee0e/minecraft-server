@@ -34,6 +34,7 @@ does not actually gate the container's port — see Security notes.
 | `.env` | Real config incl. RCON password — **gitignored** |
 | `data/whitelist-source.txt` | Plain usernames, one per line — **gitignored** |
 | `data/` | World saves, `ops.json`, logs, plugin configs — **gitignored** |
+| `patches/` | Declarative edits to Paper's own config files |
 | `scripts/server.sh` | start/stop/status + connect address — **on the VPS** |
 | `scripts/bootstrap.sh` | First-run setup — **on the VPS** |
 | `scripts/backup.sh` | Snapshot `data/` with saving paused — **on the VPS** |
@@ -122,6 +123,56 @@ docker exec mc rcon-cli gamerule playersSleepingPercentage 0
 # stop phantoms spawning when people go without sleep
 docker exec mc rcon-cli gamerule doInsomnia false
 ```
+
+## Dupers, and patching Paper's own config
+
+If a TNT, carpet or rail duper does nothing here while the same build works on
+vanilla, that's Paper, not the schematic. All of them exploit the same
+piston/moving-block bug, and Paper gates the entire family behind one flag
+that ships **off**:
+
+```yaml
+# data/config/paper-global.yml
+unsupported-settings:
+  allow-piston-duplication: false   # Paper's default
+```
+
+`MC_ALLOW_PISTON_DUPLICATION` in `.env` controls it, defaulting to `true` on
+this server. Set it to `false` and restart to turn dupers back off.
+
+**Why it isn't just edited in place.** `data/config/paper-global.yml` is
+gitignored, regenerated state. Editing it on the VPS produces a setting that
+exists on exactly one machine, appears in no commit, and vanishes silently the
+next time the data dir is rebuilt — the same failure shape as a container
+running config that `.env` no longer matches. So the change goes through the
+image's `PATCH_DEFINITIONS` mechanism instead: `patches/paper-global.json` is
+version-controlled, mounted read-only, and reapplied on every start.
+
+To patch some other Paper setting, add another entry to `ops` in that file.
+Paths are JSONPath in bracket form — `$['a-b']['c-d']` — because Paper's keys
+contain hyphens, which break the dotted form. `$set` requires the key to
+already exist and fails loudly if it doesn't; that's deliberate, so a key
+Paper has renamed shows up as an error rather than a silent no-op.
+
+**Verify it took**, since a failed patch does not stop the server:
+
+```bash
+docker compose logs mc | grep -i patch
+docker exec mc grep -A5 unsupported-settings /data/config/paper-global.yml
+```
+
+Two caveats:
+
+- This setting is under `unsupported-settings`. Paper will not take bug
+  reports from a server running it, and may log a warning at startup.
+- On a genuinely fresh world the patch is a no-op on the *first* boot. The
+  image pre-downloads Paper's default configs before the server starts, and
+  that download 404s for 26.x versions ([itzg#4025]), so the file doesn't
+  exist yet to patch — you get `Unable to patch ... it is not an existing
+  file`. Paper writes the real file during that first boot, and the patch
+  applies from the second start onward. Restart once after a fresh install.
+
+[itzg#4025]: https://github.com/itzg/docker-minecraft-server/issues/4025
 
 ## Backups
 

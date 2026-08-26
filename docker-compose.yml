@@ -45,12 +45,29 @@ services:
       VIEW_DISTANCE: "${MC_VIEW_DISTANCE}"
       SIMULATION_DISTANCE: "${MC_SIMULATION_DISTANCE}"
 
+      # --- paper config patches ---
+      # paper-global.yml lives in the gitignored data/ dir and is regenerated
+      # state, so hand-editing it there leaves a setting that exists on one
+      # machine and disappears with the next rebuild. PATCH_DEFINITIONS makes
+      # the change declarative: patches/ is version-controlled and reapplied
+      # on every start.
+      #
+      # Only the value is interpolated, and only from variables prefixed CFG_
+      # (the image's REPLACE_ENV_VARIABLE_PREFIX default) — hence the second
+      # name for what is one setting.
+      PATCH_DEFINITIONS: "/patches"
+      CFG_ALLOW_PISTON_DUPLICATION: "${MC_ALLOW_PISTON_DUPLICATION:-true}"
+
       # --- rcon: internal use only ---
       ENABLE_RCON: "TRUE"
       RCON_PASSWORD: "${MC_RCON_PASSWORD}"
 
     volumes:
       - ./data:/data
+      # Read-only: the image only reads patch definitions, never writes them.
+      # Must be readable by uid 1000 — on the VPS the checkout is root-owned,
+      # so the default 644/755 from git is what makes this work.
+      - ./patches:/patches:ro
 
     networks:
       - mc-net
