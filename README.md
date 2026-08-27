@@ -126,19 +126,30 @@ docker exec mc rcon-cli gamerule doInsomnia false
 
 ## Dupers, and patching Paper's own config
 
-If a TNT, carpet or rail duper does nothing here while the same build works on
-vanilla, that's Paper, not the schematic. All of them exploit the same
-piston/moving-block bug, and Paper gates the entire family behind one flag
-that ships **off**:
+If a duper does nothing here while the same build works on vanilla, that's
+Paper, not the schematic. Paper ships these exploits **off**, behind
+`unsupported-settings` in `data/config/paper-global.yml`.
 
-```yaml
-# data/config/paper-global.yml
-unsupported-settings:
-  allow-piston-duplication: false   # Paper's default
-```
+There is no single "dupers" switch. Which flag you need depends on which bug
+the contraption exploits, and the two do not overlap:
 
-`MC_ALLOW_PISTON_DUPLICATION` in `.env` controls it, defaulting to `true` on
-this server. Set it to `false` and restart to turn dupers back off.
+| Contraption | Bug it exploits | Flag |
+| --- | --- | --- |
+| TNT, carpet, rail | piston moves a block and leaves a copy | `allow-piston-duplication` |
+| Sand, gravel, other falling blocks | a falling-block entity survives an end portal teleport | `allow-unsafe-end-portal-teleportation` |
+
+That split is the usual source of confusion: a TNT duper works, so the server
+"has dupers on", so a dead sand duper looks like a build error. It isn't —
+sand dupers involve no piston at all, so `allow-piston-duplication` has no
+effect on them.
+
+Both default to `true` on this server, via `MC_ALLOW_PISTON_DUPLICATION` and
+`MC_ALLOW_UNSAFE_END_PORTAL_TELEPORTATION` in `.env`. Set either to `false`
+and restart to turn that family back off.
+
+Note that the end-portal flag is broader than dupers: it governs how entities
+teleport through end portals generally. If entities start vanishing or acting
+strangely around the End, that's the one to suspect.
 
 **Why it isn't just edited in place.** `data/config/paper-global.yml` is
 gitignored, regenerated state. Editing it on the VPS produces a setting that

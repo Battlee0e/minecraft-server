@@ -57,6 +57,7 @@ services:
       # name for what is one setting.
       PATCH_DEFINITIONS: "/patches"
       CFG_ALLOW_PISTON_DUPLICATION: "${MC_ALLOW_PISTON_DUPLICATION:-true}"
+      CFG_ALLOW_UNSAFE_END_PORTAL_TELEPORTATION: "${MC_ALLOW_UNSAFE_END_PORTAL_TELEPORTATION:-true}"
 
       # --- rcon: internal use only ---
       ENABLE_RCON: "TRUE"

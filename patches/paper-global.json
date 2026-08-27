@@ -7,6 +7,13 @@
         "value": "${CFG_ALLOW_PISTON_DUPLICATION}",
         "value-type": "bool"
       }
+    },
+    {
+      "$set": {
+        "path": "$['unsupported-settings']['allow-unsafe-end-portal-teleportation']",
+        "value": "${CFG_ALLOW_UNSAFE_END_PORTAL_TELEPORTATION}",
+        "value-type": "bool"
+      }
     }
   ]
 }
